@@ -1,0 +1,181 @@
+\documentclass[11pt, onecolumn, letterpaper]{article}
+
+\usepackage[T1]{fontenc}           % http://tex.stackexchange.com/a/677/42368
+\usepackage{listings}              % Code listings
+\usepackage[scaled=0.8]{luximono}  % Font for code listings
+\usepackage{mathtools}
+\usepackage{verbatim}              % Block comments
+
+\begin{document}
+\lstset{
+  language=ML, % Fake language to get syntax highlighting
+  otherkeywords={while, for, unless, inwhichcase},
+  basicstyle={\ttfamily},
+  numbers=left
+}
+
+\begin{titlepage}
+
+\centering
+
+\includegraphics[width=0.5\textwidth]{note-hashtag.pdf} \par
+\vspace{0.4em}
+{\Large A programming language for exploring and creating music \par}
+\vspace{1em}
+\vfill
+{\large Kevin~Chen~(kxc2103), Brian~Kim~(bck2116), Jennifer~Lam~(jl3953), Edward~Li~(el2724) \par}
+\vspace{1em}
+{\large September 30, 2015 \par}
+
+\end{titlepage}
+
+\raggedright
+\setlength{\parskip}{1.3ex plus 0.5ex minus 0.3ex}
+
+% fix page numbers so that we don't have two pages labeled "1."
+\setcounter{page}{2}
+
+% What Edwards wants us to include:
+% 2–4 pages
+
+% Describe the language that you plan to implement.
+\section{Goals and Philosophy}
+We would like to create a language optimized for exploring and creating music. The syntax facilitates writing snippets of music, or tracks, as parts of larger compositions. Standard library functions enable the programmer to transform these tracks. By using multiple compiler backends, the language can be compiled into audio (MP3 and MIDI) or sheet music.
+
+Our language revolves around the concept of tracks. A track is a variable length sequence of chords, each with a list of pitches and a length, plus metadata such as key signature, tempo, time signature. Tracks are the building blocks of a composition, because they allow the user to specify a few snippets of music, and then concatenate, overlay, transform, or otherwise reuse them while creating a song. 
+
+% Explain what sorts of programs are meant to be written in your language
+% Explore and create music
+% optimized for the music use case--easy to write compositions, harder to write traditional computer program
+
+% Explain the parts of your language and what they do
+% Include the source code for an interesting program in your language
+% What we want to include:
+% list of features
+% bunch of examples: bare minimum example (twinkle twinkle), example using built in functions, example using it as a programming language
+% As new features get introduced, explain the philosophy behind the design
+\section{Usage}
+
+\subsection{A Basic Example: Twinkle Twinkle Little Star}
+To demonstrate the features and syntax of our language, we include an example program that expresses ``Twinkle Twinkle Little Star'':
+
+\begin{lstlisting}
+intro = q:[ 1 1 5 5 6 6 ] . h:5
+chorus = Rhythm intro : [ 4 4 3 3 2 2 1 ]
+bridge = Relative 2 chorus
+twinkle = intro . chorus . bridge . bridge . intro . chorus
+Render twinkle "twinkle.mp3"
+\end{lstlisting}
+
+In line 1, the melody and rhythm of the first line of the song are assigned to \texttt{intro}. Pitches are specified as numbers relative to the key signature --- since we have not specified a key signature, the default of C~major will be used. Therefore, pitch 1 corresponds to C, and 5 corresponds to G. (The default time signature is 4/4, and the default tempo is 120~bpm.)
+
+The square brackets in lines 1 and 2 are syntactic sugar for the musical list constructor. The \texttt{q:[...]} applies the quarter note length to each note in the list, and returns a track. Similarly, \texttt{h:5} describes a half note of pitch 5.
+
+Our language syntax borrows heavily from OCaml: function calls do not require parentheses or commas. For example, in line 2, the standard library function \texttt{Rhythm} takes the argument \texttt{intro} without including C-like parentheses. \texttt{Rhythm} takes a track or list of notes and returns a list of the notes' lengths. The colon \texttt{:} is an operator that zips the returned rhythm to the notes, and returns a track.
+
+In line 3, we demonstrate the use of the standard library function \texttt{Relative}. It shifts \texttt{chorus} up to a second (1~pitch up), and assigns the returned value to \texttt{bridge}.
+
+Line 4 creates the song by concatenating the pieces we have made so far. Concatenating is represented by the PHP-like period operator. You may be wondering how we concatenated a track and a note in line 1. \texttt{h:5} actually creates a track with a single note. Ta-da!
+
+The last line creates an audio file of our song named \texttt{twinkle.mp3}.
+
+\newpage
+\subsection {Advanced Musical Features}
+
+This example incorporates advanced musical features, such as chords, different octaves, and multiple tracks:
+
+% setting the key signature, time signature, and tempo
+% chords
+% octaves
+% parallel + relative
+% custom beats eg q + q/2 is dotted quarter
+
+\begin{lstlisting}
+// Constants from stdlib
+/* Nested
+  /* comments */ */
+STD$key_signature = STD$C_minor
+STD$time_signature = STD$two_two
+STD$tempo = 150
+
+intro = q:@-1[1 1 5 5 6 6] . (q+q/2):5@1 . (q/2):0
+chorus = Rhythm intro : [ 4 4 3 3 2 2  1,3,5  0]
+chorus_harmony = Relative 3 chorus
+bridge = Relative 2 chorus
+outtro = Arpeggio q:1
+
+melody = intro . chorus . bridge . bridge . intro . chorus
+    . outtro
+
+padding = Rhythm intro : 0
+harmony = padding . chorus_harmony . Repeat 3 padding
+    . chorus_harmony
+
+Render (Parallel melody harmony) "twinkle.mp3"
+\end{lstlisting}
+
+The first three lines demonstrate the syntax of comments. We support both types of C-style comments (\texttt{//} and \texttt{/*...*/}) and extend the multi-line comment to allow nesting.
+
+In lines 4--7, we demonstrate how to override the default key signature, time signature, and tempo. To change the key signature to C-minor, the programmer re-assigns the value of global variable \texttt{STD\$key\_signature}, declared in the standard library, to \texttt{STD\$C\_minor} (also declared in standard library). Likewise, \texttt{STD\$time\_signature}, \texttt{STD\$two\_two}, and \texttt{STD\$tempo} are also standard library variables.
+
+The last two items of line 8 ( \texttt{(q+q/2):5@1} and \texttt{(q/2):0} ) demonstrate how the user can specify custom note lengths. Because our note constants (\texttt{q} for quarter notes, \texttt{h} for half, and \texttt{w} for whole) are implemented as floating point numbers in the standard library, it is possible to perform arithmetic operations on these constants. For example, \texttt{(q+q/2)} is a dotted quarter note, and \texttt{(q/2)} indicates an eighth note.
+
+Line 9 uses \texttt{@-1[...]} to reduce all the pitches that follow by one octave from the default (default octave assumes middle A is tuned to 440~Hz). This syntax is similar to \texttt{q:[...]} from the previous example. 
+
+Line 9 also demonstrates syntax to specify a chord, by typing a comma-separated list of notes: \texttt{1,3,5}. 
+
+Line 17 creates \texttt{padding}, a track of silence that is the same length as \texttt{intro}. This works because pitch \texttt{0} creates a rest. In line 18, this allows us to use \texttt{padding} to offset our harmony track so that it plays at the right time. Finally, we play \texttt{melody} and \texttt{harmony} in parallel and write the result to a file. 
+
+\newpage
+\subsection{Turing Complete, Yo}
+
+Our language can also be general-purpose: for example, the implementation of the \texttt{Relative} library function will use if-then and for. 
+
+% it's an actual programming language: if, unless, loops, functions, normal arrays
+
+% struct Chord
+% {
+%     Tone[] tones
+%     double duration
+% }
+% struct Tone
+% {
+%     int pitch
+%     int octave
+% }
+\begin{lstlisting}
+fun Relative offset track = (
+  if -1 <= offset and offset <= 1 then track
+  else (
+    direction = do -1 unless offset > 0 inwhichcase 1
+    scale_size = STD$key_signature$size
+    offset_track = {}
+    for chord in track do (
+      offset_tones = {}
+      for i in (Range 0 chord$tones$length) (
+        pitch = chord$tones[i]$pitch + direction * ((offset - 1) % scale_size)
+        octave = chord$tones[i]$octave + direction * ((offset - 1) / scale_size)
+        offset_tones = offset_tones . pitch@octave
+      )
+      offset_chord = chord$duration : offset_tones
+      offset_track = offset_track . offset_chord
+    )
+  )
+)
+\end{lstlisting}
+
+In line 1, we declare the function using OCaml-like syntax. The function body has multiple lines, so we must wrap it in parentheses. 
+
+This function does not have an explicit return statement --- everything in our language has a return value. Functions, if-then, for, and while all return the last line executed. Thus, the function returns \texttt{track} (line~2) when the condition is true and returns \texttt{offset\_track . offset\_note} (line~18) otherwise. 
+
+Line 4 takes advantage of this feature by setting a variable based on the result of a conditional. We also introduce an innovative feature of our language: do--unless--in which case, a fun and exciting version of if-then-else that really spices up your programs. 
+
+Lines 10--11 perform arithmetic on integers representing pitch and octave. Our language supports \texttt{+}~\texttt{-}~\texttt{*}~\texttt{/} for integers and reals, and \texttt{\%} for integers. 
+
+\subsubsection{A note on list construction}
+
+Those two lines also use square brackets for list indexing: \texttt{tones[i]}. When applied to the end of a list name, the square brackets indicate indexing instead of list construction. 
+
+\texttt{\{...\}} and \texttt{[...]} both construct lists. The difference is that square brackets \texttt{[...]} indicate that the contents should be interpreted first as musical notes --- this resolves the ambiguity between \texttt{\{1 2 3\}}, which is a list of integers, and \texttt{[1 2 3]}, a list of musical notes. 
+
+\end{document}
