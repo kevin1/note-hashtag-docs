@@ -1,0 +1,495 @@
+\documentclass[11pt, onecolumn, letterpaper]{article}
+
+\usepackage[T1]{fontenc}           % http://tex.stackexchange.com/a/677/42368
+\usepackage{hyperref}              % Links in TOC and auto-updating references
+\usepackage{listings}              % Code listings
+\usepackage[scaled=0.8]{luximono}  % Font for code listings
+\usepackage{mathtools}
+\usepackage{verbatim}              % Block comments
+
+\begin{document}
+\lstdefinestyle{nh}{
+  language=C, % Fake language to get syntax highlighting
+  otherkeywords={fun,include,for,be,then,unless,inwhichcase,type,init,beget,bringintobeing},
+  basicstyle={\ttfamily},
+  numbers=none
+}
+\lstset{style=nh}
+
+\begin{titlepage}
+
+\centering
+
+{\Huge Language Reference Manual \par}
+\vspace{3em}
+\includegraphics[width=0.5\textwidth]{note-hashtag.pdf} \par
+\vspace{0.4em}
+{\Large A programming language for exploring and creating music \par}
+
+\vfill
+
+\begin{tabular}{ l r }
+{\large Kevin Chen} & {\large \texttt{\href{mailto:kxc2103@columbia.edu}{kxc2103@columbia.edu}} } \\
+{\large Brian Kim} & {\large \texttt{\href{mailto:bck2116@columbia.edu}{bck2116@columbia.edu}} } \\
+{\large Jennifer Lam} & {\large \texttt{\href{mailto:jl3953@columbia.edu}{jl3953@columbia.edu}} } \\
+{\large Edward Li} & {\large \texttt{\href{mailto:el2724@columbia.edu}{el2724@columbia.edu}} } \\
+\end{tabular} \par
+\vspace{1em}
+{\large October 26, 2015 \par}
+
+\end{titlepage}
+
+\raggedright
+\setlength{\parskip}{1.3ex plus 0.5ex minus 0.3ex}
+
+% Fix page numbers so that we don't have two pages labeled "1."
+\setcounter{page}{2}
+
+\tableofcontents
+
+\newpage
+
+\section{Introduction}
+
+Digital composers have become powerful tools. Their functionality allows musicians to experiment with multi-track compositions without the full power of an orchestra. Additionally, it provides a feedback loop in which the musicians can immediately hear and refine their latest compositions on the spot.
+
+Traditional digital composition software center around GUI interfaces that mimic writing sheet music on paper. This approach makes it easy to specify exactly what notes the musicians want to see throughout the piece. However, when there are lots of repeating or similar elements in the piece, this approach leads to lots of copy-pasting and manual editing.
+
+Our language is designed for phrase by phrase composition, instead of note-by-note. The language lets users focus on the structure of the phrase, and gives the users powerful tools to explore many variations of that phrase through the standard library. By optimizing the manipulation of entire sequences of notes, we lend composers a powerful abstraction that frees them from thinking about individual notes.
+
+\section{Types and Literals}
+\subsection{Primitive Types}
+
+\textbf{Boolean (\texttt{bool}):} May be \texttt{true} or \texttt{false}.
+
+\textbf{Integer (\texttt{int}):} A literal such as \texttt{1564} is a 64-bit signed integer.
+
+\textbf{Floating point (\texttt{float}):} A floating point literal has a decimal part \texttt{156.4}, or an exponent part \texttt{2e-4}, or both. These are IEEE~754 double-precision (64-bit) numbers.
+
+\textbf{String (\texttt{string}):} A sequence of ASCII characters. String literals are enclosed in double quotes, with special characters escaped with a backslash \texttt{\textbackslash}.
+
+\begin{lstlisting}
+"I am an alpaca, and I say \"Pikachu\" all the time.\n"
+\end{lstlisting}
+
+The supported escape sequences are:
+
+\begin{tabular}{ r l r l }
+  \texttt{\textbackslash n} & newline & \texttt{\textbackslash r} & carriage return \\
+  \texttt{\textbackslash t} & horizontal tab & \texttt{\textbackslash v} & vertical tab \\
+  \texttt{\textbackslash \textbackslash} & backslash & \texttt{\textbackslash "} & double quote \\
+\end{tabular}
+
+\textbf{Unit (\texttt{unit}):} A unit literal is specified as \texttt{()}. The unit literal is the only value that the unit type has.
+
+\textbf{Pitch (\texttt{pitch}):} Pitches are written as \textit{note}\texttt{@}\textit{octave-offset} --- both \texttt{int}s. For example, \texttt{3@-1} is the third note of the current key signature, at one octave below the octave where A is 440~Hz.
+
+\subsection{Arrays}
+Array literals are a sequence of literals enclosed in curly braces. The items are not separated by commas or semicolons. For example, these are valid arrays:
+
+\begin{lstlisting}
+{ 1 2 3 }
+{ "red" "orange" "yellow" "green" "blue" "violet" }
+\end{lstlisting}
+
+Arrays are strongly typed --- all elements of an array must be of the same type:
+
+\begin{lstlisting}
+{ 1 2 "three" } // Type error
+{ 1 2.0 3.0 } // Type error
+\end{lstlisting}
+
+\subsubsection{Empty Arrays}
+Some situations require empty arrays, which may cause the type of the array to be ambiguous. To resolve this, prepend the type name to the array literal: \texttt{string\{\}}.
+
+\subsubsection{Chords}
+Syntactic sugar for an array of \texttt{pitch}, also known as a chord, is separating the pitch literals with commas: \texttt{1@1,3@1,5@1}. Syntactic sugar for an empty chord is \texttt{\textasciitilde}, representing a rest.
+
+% This is a subsubsection because we are still making array types --- it's just a different syntax
+\subsubsection {Musical Array Syntax}
+Musical array literals are enclosed by square brackets instead of curly braces. This syntax can only contain chords and durations. 
+
+This eliminates ambiguity between pitches and integers: \texttt{\{1 2 3\}} is interpreted as an array of \texttt{int}, while \texttt{[1 2 3]} is an array of \texttt{chord} (where each chord only happens to have one pitch).
+
+It also eliminates the ambiguity between durations and floats: when float literals appear in musical array literals, they are always interpreted as an array of duration.
+
+\begin{lstlisting}
+[1 2 3 4 5] // equivalent to {1@0 2@0 3@0 4@0 5@0}
+[6,7,8 9 10] // 6,7,8 represents a chord: the notes are played simultaneously 
+[0.25 1.0 1.5] // a rhythm of quarter note, whole note, dotted whole
+\end{lstlisting}
+
+\subsection {User-defined Types}
+The \texttt{type} keyword creates a user-defined type, which may consist of primitive types and other user-defined types. The definition must contain default values for each member: the type of each member is inferred from the default values.
+
+\begin{lstlisting}
+type person = {
+    name = ""
+    age = 0
+    favorite_ice_cream_flavors = string{}
+}
+\end{lstlisting}
+
+To create a new instance of a user-defined type, we use \texttt{init} \textit{typename}. Member variables are mutable and can be accessed using the \texttt{\$} operator.
+
+\begin{lstlisting}
+friend = init person
+friend$name = "Stephen Edwards"
+friend$age = 21
+friend$favorite_ice_cream_flavors = { "durian", "Taiwanese fish sandwich" }
+\end{lstlisting}
+
+The keywords \texttt{beget} and \texttt{bringintobeing} are accepted as replacements for \texttt{init}.
+
+\section{Operators and Expressions}
+
+\subsection{Identifiers}
+Identifiers are sequences of letters, digits, and underscores where the first character a letter. Additionally, function identifiers must begin with an uppercase letter, while type and variable identifiers must begin with a lowercase letter.
+
+Valid function names: \texttt{Assert}, \texttt{Merge\_sort}, \texttt{QuickSort}
+
+Valid variable and type names: \texttt{count}, \texttt{input\_file\_2}, \texttt{favoriteNumber}
+
+Invalid names: \texttt{\_myArray}, \texttt{Run-length-encode}, \texttt{3rd\_item}
+
+\subsection{Variables and Assignment}
+
+The \texttt{=} operator is used to assign the value of an expression to an identifier. It returns unit --- assignment cannot be used as an expression in, say, a function call. Additionally, assignment is non-associative, so it is a syntax error to chain assignments.
+
+\begin{lstlisting}
+my_jelly_beans = 1000
+my_jelly_beans = my_jelly_beans + 60 // Bought some more jelly beans
+i = j = 0 // Syntax error
+\end{lstlisting}
+
+The first line implicitly declares a new variable, since the identifier \texttt{my\_jelly\_beans} has not appeared previously in the program. Thanks to type inference, we don't have to specify the type.
+
+To declare a constant, prefix the identifier with the \texttt{const} keyword:
+
+\begin{lstlisting}
+const planets_count = 9
+planets_count = 8 // => Compile-time error
+\end{lstlisting}
+
+\subsection{Arithmetic Operators}
+The arithmetic operators are \texttt{+}, \texttt{-}, \texttt{*}, \texttt{/}, and modulus \texttt{\%}. 
+
+The unary \texttt{-} operator has the highest precedence, followed by the binary \texttt{*}, \texttt{/}, and \texttt{\%} operators, followed by the binary \texttt{+} and \texttt{-} operators. All arithmetic operators are left-associative. 
+
+Although we do not have a separate set of operators for floating-point arithmetic, arithmetic operators may only be applied to operands of the same type --- there is no automatic promotion of \texttt{int} to \texttt{float}. For example, \texttt{1 + 2.0} is a type error.
+
+\subsection{Logical and Relational Operators}
+
+Relational operators are \texttt{<}, \texttt{<=}, \texttt{>}, \texttt{>=}, which have the same precedence. The equality operators \texttt{==} and \texttt{!=} are below them in precedence, then \texttt{\&\&}, then \texttt{||}.
+
+In equality comparison, primitives are compared by value. Collections and user-defined types are compared structurally: each member is compared by value. For example, the following boolean expressions are equivalent:
+
+\begin{lstlisting}
+type stringnum = {
+    s = "zero"
+    n = 0
+}
+a = init stringnum
+b = init stringnum
+Print_bool a.s == b.s && a.n == b.n // => "true"
+Print_bool a == b // => "true"
+\end{lstlisting}
+
+The negation operator \texttt{!} inverts true to false and vice versa. Unlike C and C++, it does not convert non-zero values to zero: negation may only be applied to \texttt{bool} operands.
+
+\subsection{Array Operators}
+\subsubsection{Array Access}
+Similar to OCaml, the \textit{array-identifier}\texttt{.(\textrm{\textit{int-expression}})} operator access an element of an array. For example:
+
+\begin{lstlisting}
+arr = { 0 1 2 3 4 }
+arr.(2) = 5
+Print_int arr.(2) // => 5
+\end{lstlisting}
+
+\subsubsection{Array Concatenation}
+The \texttt{.} binary operator concatenates arrays of the same type. It is left-associative.
+
+\begin{lstlisting}
+instruments = { "violin" }
+instruments = { "piano" } . instruments // => { "piano", "violin" }
+favorite_numbers = { 3 9 } . { "twenty-seven" } // Type error
+\end{lstlisting}
+
+\subsection{Musical Operators}
+% TODO: move to literals
+
+% TODO: resolve how we are representing half steps. I would propose adding another field to the pitch type called pitch_minor: 
+% could we have a pitch_major and pitch_minor?
+% So in C major, C => pitch_major = 1, pitch_minor = 0
+% C# => pitch_major = 1, pitch_minor = 1
+% Then the key signature resolves ambiguity, for example C# (1, 1) is the same as Db (2, -1) in C major
+\texttt{\#} Sharp \\
+\texttt{b} Flat - both of the above operators apply to the left side\\
+\texttt{:} zip - takes an array of float (note durations) on the left and an array of chords on the right, zips the two values together to create a track object. It can also take a single float or a single chord (or even single int, pitch or rest), in which case the same value will be used for the entire zipping:
+\begin{lstlisting}
+simple_track = [quarter quarter] : [1 2]
+steady_track = quarter : [1 2 3 6 7]
+repetitive_track = [quarter half half quarter half half] : 1,3,5
+another_repetitive = [quarter half half] : 1@1
+short_track = quarter : 2
+short_rest = quarter : ~
+\end{lstlisting}
+Note that zipping two arrays of different lengths causes a runtime error.
+
+\subsection{Tracks}
+Tracks represent musical phrases. They consist of a sequence of chords, and their durations. They also contain the key signature, time signature, and tempo. These values are copied from \texttt{key\_signature}, \texttt{time\_signature}, \texttt{tempo} of \texttt{std} when the track object is created. New tracks are created when an array of chords is zipped with an array of floats (note durations):
+\begin{lstlisting}
+my_track = [quarter quarter half] : [5 6 7]
+\end{lstlisting}
+New tracks are also created when two old tracks are concatenated:
+\begin{lstlisting}
+new_track = first_track . second_track
+\end{lstlisting}
+Note that concatenating two tracks of different key signature, time signature, or tempo causes a runtime error.
+
+\subsection{Songs}
+A song is an array of array of tracks. An array of tracks represents tracks to be played sequentially. The array of all these track arrays represents parts to be played concurrently. A song also contains the volume mix ratios for each of these tracks. Many standard library functions create and mix song objects, such as \texttt{Parallel} or \texttt{Sequential}:
+\begin{lstlisting}
+my_song = Parallel track_1 track_2
+\end{lstlisting}
+
+\subsection{Comments}
+Our languages allows single-line comments, multi-line comments, and nested comments. Everything after \texttt{//}, or between \texttt{/* */}.
+
+\begin{lstlisting}
+// I'm a single line comment.
+/* I am a 
+multiline /* nested */ comment. */
+\end{lstlisting}
+ 
+\section{Control Flow}
+All expressions in the language have return types, including control structures. The return value of a control structure is the last expression executed.
+
+\subsection{Conditionals}
+There are two forms of conditional expressions in our language:\footnote{The \texttt{be}--\texttt{unless}--\texttt{inwhichcase} conditional is a revolutionary new language construct we are introducing. Because it provides an easy-to-use way for programmers to spice up their code, we consider it an essential feature of our language.}
+
+\texttt{if} \textit{boolean-expression} \texttt{then} \textit{expression} \texttt{else} \textit{expression} \\
+\texttt{be} \textit{expression} \texttt{unless} \textit{boolean-expression} \texttt{inwhichcase} \textit{expression}
+
+Here's an example that uses both:
+
+\begin{lstlisting}
+greeting = be "Hello" unless location == "Texas" inwhichcase "Howdy"
+if audience_size <= 7 * 1000 * 1000 * 1000 then
+    Print_string greeting . " world"
+else
+    Print_string greeting . " universe"
+\end{lstlisting}
+
+Recall that the return type of a control structure in our language is the last expression executed. This means both outcomes of the condition must be handled: each \texttt{if} must have an \texttt{else}, and each \texttt{be} must have an \texttt{inwhichcase}. Conveniently, it also encourages programmers to code more defensively, leading to better code.\footnote{It also works around the dangling else problem.}
+
+\subsection{For Loop}
+\texttt{for} \textit{identifier} \texttt{in} \textit{array} \texttt{do} \textit{expression}
+
+The for loop evaluates the expression for each item in the array, with the identifier assigned to the current array item.
+
+We do not provide break or continue. Algorithms that require these should be rewritten as tail-recursive functions.
+
+\section{Program Structure}
+\subsection{Includes}
+All programs must begin with includes (if they exist). Includes are specified in the following format: \texttt{include}~\textit{module-name}. 
+
+The \texttt{include} keyword dumps all of the functions and fields from the module, so access to these values can be done without prepending the module name. (The standard library is implicitly included at the beginning of each file.) Additionally, it runs any top-level expressions in that library.
+
+\begin{lstlisting}
+include phonebook
+// Now we can use types, variables, and functions from phonebook
+sedwards = init person
+sedwards$name = "Stephen Edwards"
+database = Create_phonebook "My Columbia Friends" { sedwards }
+\end{lstlisting}
+
+\subsection{Functions}
+Functions are defined using the \texttt{fun} keyword.\footnote{We chose \texttt{fun} because programs written in our language should be fun!} 
+
+\texttt{fun} \textit{Function-identifier arg-identifier-1 \ldots arg-identifier-N} \texttt{=} \textit{expression}
+
+They can be defined anywhere in the top level of the program, and do not have to be defined before they are called:
+
+\begin{lstlisting}
+fun Sum a b c d = Sum a b + Sum c d
+fun Sum a b = a + b
+Sum 1 2 3 4 // => 10
+\end{lstlisting}
+
+Functions are implicitly templated.\footnote{We chose this to make implementing type inference easier.} That means types are checked when the function is called, rather than when it is instantiated. In the example above, we could've passed in four \texttt{float} values instead, since the operator \texttt{+} is defined on \texttt{float}.
+
+The arguments to a function are always passed by value, including collections and user-defined types. Mutating an argument does not mutate the caller or callee's copy.
+
+\subsection{Scoping}
+Scoping works naturally. The outer-most scope is the whole program. Function definitions create their own scope, which must be enclosed in parentheses if the function is multi-lined. Code constructs related to control flow (conditionals and for loops) will create a local scope as well.
+
+However, there is no implicit declaration within these scopes: if a name is defined in a higher scope, assigning to that name will mutate the original variable rather than declaring a new one.
+
+\begin{lstlisting} 
+a = 5
+b = 6
+c = d // Name error: d is not defined yet
+if a == 5 then
+    (a = 6  
+        d = 7)
+else
+    a = 4
+Print_int a // => 6
+c = d // Name error: d is no longer defined
+\end{lstlisting}
+
+\subsection{Multi-line Expressions}
+The line continuation character is \texttt{\textbackslash}. Lines are separated by newline or semicolon. Multiple statements within the scope of a code construct must be enclosed within parentheses:
+
+\begin{lstlisting}
+x = 6
+// Multi-line expression
+y = 4 + 5 + \
+    6 + 7
+if x == 5 then
+    y = 5
+else ( // Multiple expressions within parentheses
+    x = 0; z = 7
+    y = 0
+)
+\end{lstlisting}
+
+\section{Standard Library}
+The standard library allows users to configure their composition settings and contains functions to modify tracks.
+
+\subsection{Settings in \texttt{std}}
+Every composition needs a key signature, time signature, and tempo. In our language, we represent these settings as global variables declared in the standard library: \texttt{key\_signature}, \texttt{time\_signature}, and \texttt{tempo}. 
+
+These setting are applied to tracks at construction, so changing them affects all future tracks in the song. The defaults are shown below:
+
+\begin{lstlisting}
+// Type that specifies settings of a composition.
+key_signature = C_major // Defined in std
+time_signature = four_four // Defined in std
+tempo = 120
+\end{lstlisting}
+
+\subsection{Time Signature}
+Time signature is represented as a type named \texttt{time\_signature}. This type contains two values corresponding to the upper and lower half of the time signature. Commonly used time signatures are enumerated as constants in the standard library:
+
+\begin{lstlisting}
+type time_signature = {
+    upper = 4
+    lower = 4
+}
+
+four_four = init time_signature // Use defaults
+
+three_four = init time_signature
+three_four$upper = 3
+
+three_three = init time_signature
+three_three$upper = 3
+three_three$lower = 3
+// And so on
+\end{lstlisting}
+
+\subsection{Tempo}
+Tempo is an \texttt{int} signifying the beats per minute. The default value is 120~bpm.
+
+\subsection {Rhythm}
+Commonly used durations are \texttt{float} constants defined in the standard library for convenience. For example, typing \texttt{quarter} or \texttt{q} is the same as \texttt{0.25}:
+
+\begin{tabular}{ l l }
+  \texttt{q} or \texttt{quarter} & \texttt{0.25} \\
+  \texttt{h} or \texttt{half} & \texttt{0.5} \\
+  \texttt{w} or \texttt{whole} & \texttt{1.0} \\
+  \texttt{t} or \texttt{triplet} & \texttt{1.0 / 3.0} \\
+\end{tabular}
+
+Using \texttt{float} values for note durations also allows us to specify more fine-grained durations with the arithmetic operators:
+
+\begin{lstlisting}
+q * 1.5 // => Dotted quarter note
+[ (q + q/2.0) q/2.0 h ] // => Syncopated rhythm of 3/8 1/8 1/2 notes
+\end{lstlisting}
+
+\subsection{Key Signature}
+Up until now, we represented pitches as integers to show their relation to the base note of the scale. However, to create audio, we have to specify the mapping between these integers and frequencies (units of hz) in a key signature.
+
+The key signature lookup table is an array of \texttt{float}. The frequency for an integer in the musical array corresponds to the value in the key signature at that index minus one. The Western scales have been mapped in the standard library as follows:
+
+\begin{lstlisting}
+C_major = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88]
+C_minor = [261.63, 293.66, 311.13, 349.23, 392.00, 415.30, 466.16]
+\end{lstlisting}
+
+Pentatonic, Hexatonic and Heptatonic scales are defined in a similar manner. However, trying to access a note outside of the scale will result in a runtime error:
+
+\begin{lstlisting}
+key_signature = C_major_pent
+pitches = [1, 2, 3, 4, 5, 6, 7] // Runtime error
+\end{lstlisting}
+
+The pitches 6 and 7 are located outside of the five-note pentatonic scale. If we wanted to access the next note after 5, we would use notes in the next octave up:
+
+\begin{lstlisting}
+key_signature = C_major_pent
+pitches = [1, 2, 3, 4, 5] . @2[1, 2]
+\end{lstlisting}
+
+\subsection{Function Listing}
+% TODO throw everything you can think of in here
+
+\texttt{Render filename song} \\ Creates a WAV file of the song.
+
+\texttt{Print\_string s}, \texttt{Print\_int i}, \texttt{Print\_float f}, \texttt{Print\_bool b}, \ldots \\
+Prints the argument to standard out.
+
+\texttt{Exit c} \\ Exit the program with the specified exit code. If there is no call to \texttt{Exit} at the end of the file, \texttt{Exit 0} is implicitly called.
+
+\texttt{Scale pitch\_a pitch\_b} \\ Returns an array of $ length-1 $ chords representing the scale in the current key signature between \texttt{pitch\_a} and \texttt{pitch\_b}.
+
+\texttt{Arpeggio chord} \\ Returns an array of $ length-1 $ chords representing the arpeggio using the pitches from chord.
+
+\texttt{Rhythm track} \\ Returns the array of note durations of the track.
+
+\texttt{Chords track} \\ Returns the array of chords of the track.
+
+\texttt{Parallel track\_a track\_b \ldots} \\ Returns a song object with the tracks aligned in parallel (to be played concurrently).
+
+\texttt{Sequential track\_a track\_b \ldots} \\ Returns a song object with the tracks aligned in a single sequence (to be played sequentially).
+
+\section{Appendix}
+
+\subsection{Order of Operations}
+
+In order of decreasing precedence:
+
+\begin{tabular} {l l l}
+%\hline
+Operators & Description & Associativity \\
+\hline
+\texttt{!} & Logical not & Unary \\
+\texttt{-} & Negation & Unary \\
+\texttt{*}, \texttt{/}, \texttt{\%} & Multiply, Divide, Modulus & Left \\
+\texttt{+}, \texttt{-} & Add, Subtract & Left \\
+\texttt{<}, \texttt{>}, \texttt{>=}, \texttt{<=} & Comparison operators & Left \\
+\texttt{==}, \texttt{!=} & Equality operators & Left \\
+\texttt{\&\&} & Logical-and & Left \\
+\texttt{||} & Logical-or & Left \\
+\texttt{.} & Concatenation & Left \\
+\texttt{=} & Assignment & None \\
+\end{tabular}
+
+Use parentheses \texttt{()} to override operator precedence.
+
+\subsection{Toolchain}
+The compiler is named \texttt{nhc}. It accepts the following command-line arguments:
+
+\begin{tabular}{l l}
+\texttt{-A} & Output internal representation (syntax tree) \\
+\texttt{-c} \textit{file} & Compile the specified file \\
+\texttt{-o} \textit{file} & Write output to the specified file \\
+\texttt{-S} & Output intermediate language representation (C++) \\
+\texttt{-v} & Print verbose debugging information \\
+\end{tabular}
+
+\end{document}
