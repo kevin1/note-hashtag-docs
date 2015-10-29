@@ -1,0 +1,13 @@
+# LaTeX
+*.pdf
+*.aux
+*.out
+*.toc
+*.log
+
+# Mac
+.DS_Store
+._*
+
+# Windows
+Thumbs.db
